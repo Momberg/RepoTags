@@ -4,10 +4,13 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"repotags/model"
+	"net/http"
+	"repotags/handler"
 	"repotags/repository"
 
+	"github.com/go-sql-driver/mysql"
 	"github.com/google/go-github/github"
+	"github.com/gorilla/mux"
 	"golang.org/x/oauth2"
 )
 
@@ -19,28 +22,10 @@ func init() {
 		return
 	}
 	fmt.Println("DB connection started.")
-}
-
-func main() {
-	/*gitRepo := model.Repo{
-		Description: "teste",
-		ID:          "teste",
-		Language:    "EN",
-		URL:         "www.google.com.br",
-	}
-	gitRepo.Tags = append(gitRepo.Tags, "a")
-	gitRepo.Tags = append(gitRepo.Tags, "b")
-	if model.ValidateDuplicatedTag(gitRepo, "a") {
-		fmt.Println("This tag already exists")
-	}
-	fmt.Printf("git %+v\r\n ", gitRepo)*/
-
-	//http.HandleFunc("/", handler.CreateRestHandler)
-	//http.ListenAndServe(":8181", nil)
 
 	ctx := context.Background()
 	ts := oauth2.StaticTokenSource(
-		&oauth2.Token{AccessToken: "add your token"},
+		&oauth2.Token{AccessToken: "f59811e8859a70925ae34fa5eef6cda09ae016aa"},
 	)
 	tc := oauth2.NewClient(ctx, ts)
 
@@ -50,26 +35,28 @@ func main() {
 	if err != nil {
 		fmt.Println("Error to access gitHub: ", err.Error())
 	}
-	var gitRepo model.Repository
 	db, err := repository.GetDBConnection()
 	if err != nil {
-		log.Println("[Main] Connection error: ", err.Error())
+		log.Println("[Main] DB connection error: ", err.Error())
 		return
 	}
 	sql := "insert into repository (id, name, description, url, language) values (?, ?, ?, ?, ?)"
 	for _, starredRepo := range repos {
-		gitRepo = model.Repository{
-			Description: starredRepo.GetRepository().GetDescription(),
-			ID:          starredRepo.GetRepository().GetID(),
-			Language:    starredRepo.GetRepository().GetLanguage(),
-			URL:         starredRepo.GetRepository().GetURL(),
-			Name:        starredRepo.Repository.GetName(),
-		}
-		fmt.Printf("User repos: %+v\r\n", gitRepo)
 		_, err := db.Exec(sql, starredRepo.GetRepository().GetID(), starredRepo.Repository.GetName(), starredRepo.GetRepository().GetDescription(),
 			starredRepo.GetRepository().GetURL(), starredRepo.GetRepository().GetLanguage())
-		if err != nil {
-			fmt.Println("[Main] Insert error: ", sql, " - ", err.Error())
+		if driverErr, ok := err.(*mysql.MySQLError); ok {
+			if driverErr.Number == 1062 {
+				return
+			}
+			fmt.Println("[Main] Insert error: ", sql, " - ", driverErr.Error())
 		}
+
 	}
+}
+
+func main() {
+	router := mux.NewRouter()
+	router.HandleFunc("/repositories", handler.GetRepos).Methods("GET")
+	router.HandleFunc("/repository/{id}/tag", handler.AddTagToRepo).Methods("POST")
+	http.ListenAndServe(":8181", router)
 }

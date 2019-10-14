@@ -16,7 +16,7 @@ var db *sqlx.DB
 //OpenConnection open MYSQL connection
 func OpenConnection() (db *sqlx.DB, err error) {
 	err = nil
-	db, err = sqlx.Open("mysql", "root:1234@tcp(localhost:3306)/gittags?parseTime=true")
+	db, err = sqlx.Open("mysql", "root@tcp(localhost:3306)/gittags?parseTime=true")
 	if err != nil {
 		log.Println("[OpenConnection] Connection error: ", err.Error())
 		return
