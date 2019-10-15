@@ -25,7 +25,7 @@ func init() {
 
 	ctx := context.Background()
 	ts := oauth2.StaticTokenSource(
-		&oauth2.Token{AccessToken: "f98d2fc27b6b462e550a00f1a4a8fcffef57e296"},
+		&oauth2.Token{AccessToken: "2b03d7852c441112bafd54c6d581cf96110bdedf"},
 	)
 	tc := oauth2.NewClient(ctx, ts)
 
@@ -56,7 +56,7 @@ func init() {
 
 func main() {
 	router := mux.NewRouter()
-	router.HandleFunc("/repositories", handler.GetRepos).Methods("GET")
+	router.HandleFunc("/repositories", handler.GetReposTagRecommendation).Methods("GET")
 	router.HandleFunc("/repositories/tag/{id}", handler.GetReposByTag).Methods("GET")
 	router.HandleFunc("/repository/{id}/tag", handler.AddTagToRepo).Methods("POST")
 	http.ListenAndServe(":8181", router)

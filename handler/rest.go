@@ -11,21 +11,22 @@ import (
 	"github.com/gorilla/mux"
 )
 
-//GetRepos get repositories
-func GetRepos(w http.ResponseWriter, r *http.Request) {
+//GetReposTagRecommendation get repositories tags recommendation
+func GetReposTagRecommendation(w http.ResponseWriter, r *http.Request) {
 	db, err := repository.GetDBConnection()
 	if err != nil {
 		log.Println("[Rest] Connection error: ", err.Error())
 		return
 	}
 	sql := "select id, name, description, url, language from repository"
-	repo := []model.Repository{}
-	err = db.Select(&repo, sql)
+	repos := []model.Repository{}
+	err = db.Select(&repos, sql)
 	if err != nil {
 		log.Println("[Rest] Select error: ", err.Error())
 	}
+	getTagRecommendation(repos)
 	w.Header().Add("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(repo)
+	json.NewEncoder(w).Encode(repos)
 }
 
 //GetReposByTag get repositories
@@ -44,6 +45,7 @@ func GetReposByTag(w http.ResponseWriter, r *http.Request) {
 	repos := []model.Repository{}
 	repo := model.Repository{}
 	rows, _ := db.Query(sql, params["id"]+"%")
+	tagMap := make(map[string]int64)
 	for rows.Next() {
 		tag := model.Tags{}
 		err = rows.Scan(&repo.ID,
@@ -55,10 +57,20 @@ func GetReposByTag(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			log.Println("[Rest] Scan error: ", err.Error())
 		}
-		repo.Tags = append(repo.Tags, tag)
+		tagMap[tag.Name] = repo.ID
 		repos = append(repos, repo)
 	}
 	removeDBDuplicated(repos)
+	for index := range repos {
+		tagS := model.Tags{}
+		for tag, id := range tagMap {
+			if id == repos[index].ID {
+				tagS.Name = tag
+				repos[index].Tags = append(repos[index].Tags, tagS)
+			}
+		}
+	}
+	getTagRecommendation(repos)
 	w.Header().Add("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(repos)
 }
@@ -82,7 +94,7 @@ func AddTagToRepo(w http.ResponseWriter, r *http.Request) {
 		log.Println("[Rest] Body convertion error: ", err.Error())
 		return
 	}
-	if validateTags(tag.Name) {
+	if validateTags(tag.Name, params["id"]) {
 		http.Error(w, "This tag already exists for this repository.", http.StatusBadRequest)
 		return
 	}
@@ -104,18 +116,18 @@ func AddTagToRepo(w http.ResponseWriter, r *http.Request) {
 }
 
 //ValidateTags validate tags
-func validateTags(name string) bool {
+func validateTags(name string, id string) bool {
 	db, err := repository.GetDBConnection()
 	if err != nil {
 		log.Println("[Rest] Connection error: ", err.Error())
 	}
-	sql := "select name from tags"
+	sql := "select id, name from tags"
 	tags := []model.Tags{}
 	err = db.Select(&tags, sql)
 	if err != nil {
-		log.Println("[Rest] Select error: ", err.Error())
+		log.Println("[Rest] Tags select error: ", err.Error())
 	}
-	return model.ValidateDuplicatedTag(name, tags)
+	return model.ValidateDuplicatedTag(name, tags, id)
 }
 
 //removeDBDuplicated remove duplicated data
@@ -124,13 +136,6 @@ func removeDBDuplicated(repos []model.Repository) {
 	for range repos {
 		if len(repos)-1 > index {
 			if repos[index].ID == repos[index+1].ID {
-				/*if len(repos[index].Tags) < len(repos[index+1].Tags) {
-					repos[index] = repos[len(repos)-1]
-					repos[len(repos)-1] = model.Repository{}
-					repos = repos[:len(repos)-1]
-					index--
-					continue
-				}*/
 				repos[index] = repos[len(repos)-1]
 				repos[len(repos)-1] = model.Repository{}
 				repos = repos[:len(repos)-1]
@@ -138,5 +143,16 @@ func removeDBDuplicated(repos []model.Repository) {
 			}
 		}
 		index++
+	}
+}
+
+//getTagRecommendation recommend tags
+func getTagRecommendation(repos []model.Repository) {
+	for repo := range repos {
+		if repos[repo].Language != "" {
+			repos[repo].Tagrecommendation = repos[repo].Language
+		} else {
+			repos[repo].Tagrecommendation = repos[repo].Name
+		}
 	}
 }
