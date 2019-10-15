@@ -11,8 +11,8 @@ import (
 	"github.com/gorilla/mux"
 )
 
-//GetReposTagRecommendation get repositories tags recommendation
-func GetReposTagRecommendation(w http.ResponseWriter, r *http.Request) {
+//GetRepos get repositories
+func GetRepos(w http.ResponseWriter, r *http.Request) {
 	db, err := repository.GetDBConnection()
 	if err != nil {
 		log.Println("[Rest] Connection error: ", err.Error())

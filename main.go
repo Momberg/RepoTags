@@ -56,7 +56,7 @@ func init() {
 
 func main() {
 	router := mux.NewRouter()
-	router.HandleFunc("/repositories", handler.GetReposTagRecommendation).Methods("GET")
+	router.HandleFunc("/repositories", handler.GetRepos).Methods("GET")
 	router.HandleFunc("/repositories/tag/{id}", handler.GetReposByTag).Methods("GET")
 	router.HandleFunc("/repository/{id}/tag", handler.AddTagToRepo).Methods("POST")
 	http.ListenAndServe(":8181", router)
