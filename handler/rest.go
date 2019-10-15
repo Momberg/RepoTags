@@ -28,6 +28,41 @@ func GetRepos(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(repo)
 }
 
+//GetReposByTag get repositories
+func GetReposByTag(w http.ResponseWriter, r *http.Request) {
+	params := mux.Vars(r)
+	if len(params["id"]) < 1 {
+		log.Println("[Rest] Missing repository tag name.")
+		return
+	}
+	db, err := repository.GetDBConnection()
+	if err != nil {
+		log.Println("[Rest] Connection error: ", err.Error())
+		return
+	}
+	sql := "select r.id, r.name, r.description, r.url, r.language, t.name as tags from repository r join tags t where r.tag_id = t.id and t.name like ? GROUP BY r.id, t.name;"
+	repos := []model.Repository{}
+	repo := model.Repository{}
+	rows, _ := db.Query(sql, params["id"]+"%")
+	for rows.Next() {
+		tag := model.Tags{}
+		err = rows.Scan(&repo.ID,
+			&repo.Name,
+			&repo.Description,
+			&repo.URL,
+			&repo.Language,
+			&tag.Name)
+		if err != nil {
+			log.Println("[Rest] Scan error: ", err.Error())
+		}
+		repo.Tags = append(repo.Tags, tag)
+		repos = append(repos, repo)
+	}
+	removeDBDuplicated(repos)
+	w.Header().Add("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(repos)
+}
+
 //AddTagToRepo add tag to repository
 func AddTagToRepo(w http.ResponseWriter, r *http.Request) {
 	params := mux.Vars(r)
@@ -81,4 +116,27 @@ func validateTags(name string) bool {
 		log.Println("[Rest] Select error: ", err.Error())
 	}
 	return model.ValidateDuplicatedTag(name, tags)
+}
+
+//removeDBDuplicated remove duplicated data
+func removeDBDuplicated(repos []model.Repository) {
+	index := 0
+	for range repos {
+		if len(repos)-1 > index {
+			if repos[index].ID == repos[index+1].ID {
+				/*if len(repos[index].Tags) < len(repos[index+1].Tags) {
+					repos[index] = repos[len(repos)-1]
+					repos[len(repos)-1] = model.Repository{}
+					repos = repos[:len(repos)-1]
+					index--
+					continue
+				}*/
+				repos[index] = repos[len(repos)-1]
+				repos[len(repos)-1] = model.Repository{}
+				repos = repos[:len(repos)-1]
+				index--
+			}
+		}
+		index++
+	}
 }

@@ -13,9 +13,8 @@ type Repository struct {
 
 //Tags struct
 type Tags struct {
-	id     int    `db:"id"`
-	Name   string `json:"name" db:"name"`
-	Repoid int    `db:"repo_id"`
+	id   int    `db:"id"`
+	Name string `json:"name" db:"name"`
 }
 
 //ValidateDuplicatedTag validate duplicated tags
