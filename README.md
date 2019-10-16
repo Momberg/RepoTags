@@ -24,4 +24,6 @@ go get github.com/google/go-github/github
 go get github.com/go-sql-driver/mysql
 go get github.com/jmoiron/sqlx
 ```
+## MYSQL Database ##
 
+You need to import the gittags.sql file located in the project root folder.
