@@ -27,3 +27,7 @@ go get github.com/jmoiron/sqlx
 ## MYSQL Database ##
 
 You need to import the gittags.sql file located in the project root folder.
+
+## APIs ##
+
+There is a POSTMAN file to import named gitRepo.postman_collection.json in the project root folder.
