@@ -2,6 +2,7 @@ package repository
 
 import (
 	"log"
+	"os"
 
 	"github.com/jmoiron/sqlx"
 	/*
@@ -16,7 +17,7 @@ var db *sqlx.DB
 //OpenConnection open MYSQL connection
 func OpenConnection() (db *sqlx.DB, err error) {
 	err = nil
-	db, err = sqlx.Open("mysql", "root@tcp(localhost:3306)/gittags?parseTime=true")
+	db, err = sqlx.Open("mysql", createURLConnection())
 	if err != nil {
 		log.Println("[OpenConnection] Connection error: ", err.Error())
 		return
@@ -40,9 +41,27 @@ func GetDBConnection() (localdb *sqlx.DB, err error) {
 	}
 	err = db.Ping()
 	if err != nil {
-		log.Println("[GetDBConnection] Erro no ping na conexao: ", err.Error())
+		log.Println("[GetDBConnection] Connection ping error: ", err.Error())
 		return
 	}
 	localdb = db
 	return
+}
+
+//createURLConnection create the mysql url to connect
+func createURLConnection() string {
+	user := os.Getenv("MYSQLUSER")
+	pass := os.Getenv("MYSQLPASS")
+	host := os.Getenv("MYSQLHOST")
+	url := ""
+	if host == "" {
+		log.Println("[createUrlConnection] Configure the mysql host.")
+	} else if user == "" {
+		log.Println("[createUrlConnection] Configure the mysql user.")
+	} else if pass != "" {
+		url = user + ":" + pass + "@tcp(" + host + ")/gittags?parseTime=true"
+	} else {
+		url = user + "@tcp(" + host + ")/gittags?parseTime=true"
+	}
+	return url
 }

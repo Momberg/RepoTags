@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"repotags/model"
 	"repotags/repository"
+	"strconv"
+	"strings"
 
 	"github.com/gorilla/mux"
 )
@@ -15,6 +17,7 @@ import (
 func GetRepos(w http.ResponseWriter, r *http.Request) {
 	db, err := repository.GetDBConnection()
 	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		log.Println("[Rest] Connection error: ", err.Error())
 		return
 	}
@@ -22,7 +25,9 @@ func GetRepos(w http.ResponseWriter, r *http.Request) {
 	repos := []model.Repository{}
 	err = db.Select(&repos, sql)
 	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		log.Println("[Rest] Select error: ", err.Error())
+		return
 	}
 	getTagRecommendation(repos)
 	w.Header().Add("Content-Type", "application/json")
@@ -31,20 +36,29 @@ func GetRepos(w http.ResponseWriter, r *http.Request) {
 
 //GetReposByTag get repositories
 func GetReposByTag(w http.ResponseWriter, r *http.Request) {
-	params := mux.Vars(r)
-	if len(params["id"]) < 1 {
+	body, err := ioutil.ReadAll(r.Body)
+	defer r.Body.Close()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	tagBody := model.Tags{}
+	err = json.Unmarshal(body, &tagBody)
+	if len(tagBody.Name) < 1 || tagBody.Name == "" {
+		http.Error(w, "Missing repository ID.", http.StatusBadRequest)
 		log.Println("[Rest] Missing repository tag name.")
 		return
 	}
 	db, err := repository.GetDBConnection()
 	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		log.Println("[Rest] Connection error: ", err.Error())
 		return
 	}
-	sql := "select r.id, r.name, r.description, r.url, r.language, t.name as tags from repository r join tags t where r.tag_id = t.id and t.name like ? GROUP BY r.id, t.name;"
+	sql := "select r.id, r.name, r.description, r.url, r.language, t.name as tags from repository r join tags t where r.tag_id = t.id and t.name like ? GROUP BY r.id, t.name order by r.id;"
 	repos := []model.Repository{}
 	repo := model.Repository{}
-	rows, _ := db.Query(sql, params["id"]+"%")
+	rows, _ := db.Query(sql, tagBody.Name+"%")
 	tagMap := make(map[string]int64)
 	for rows.Next() {
 		tag := model.Tags{}
@@ -57,15 +71,15 @@ func GetReposByTag(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			log.Println("[Rest] Scan error: ", err.Error())
 		}
-		tagMap[tag.Name] = repo.ID
+		tagMap[tag.Name+"-"+strconv.FormatInt(repo.ID, 10)] = repo.ID
 		repos = append(repos, repo)
 	}
-	removeDBDuplicated(repos)
+	repos = removeDuplicates(repos)
 	for index := range repos {
 		tagS := model.Tags{}
 		for tag, id := range tagMap {
 			if id == repos[index].ID {
-				tagS.Name = tag
+				tagS.Name = tag[:strings.IndexByte(tag, '-')]
 				repos[index].Tags = append(repos[index].Tags, tagS)
 			}
 		}
@@ -79,18 +93,20 @@ func GetReposByTag(w http.ResponseWriter, r *http.Request) {
 func AddTagToRepo(w http.ResponseWriter, r *http.Request) {
 	params := mux.Vars(r)
 	if len(params["id"]) < 1 {
+		http.Error(w, "Missing repository ID.", http.StatusBadRequest)
 		log.Println("[Rest] Missing repository ID.")
 		return
 	}
 	body, err := ioutil.ReadAll(r.Body)
 	defer r.Body.Close()
 	if err != nil {
-		http.Error(w, err.Error(), 500)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	tag := model.Tags{}
 	err = json.Unmarshal(body, &tag)
 	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		log.Println("[Rest] Body convertion error: ", err.Error())
 		return
 	}
@@ -100,17 +116,20 @@ func AddTagToRepo(w http.ResponseWriter, r *http.Request) {
 	}
 	db, err := repository.GetDBConnection()
 	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		log.Println("[Rest] Connection error: ", err.Error())
 		return
 	}
 	sql := "insert into tags (id, name) values (?, ?)"
 	_, err = db.Exec(sql, params["id"], &tag.Name)
 	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		log.Println("[Rest] Insert tags error: ", err.Error())
 	}
 	sql = "update repository set tag_id = (?) where id = " + params["id"]
 	_, err = db.Exec(sql, params["id"])
 	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		log.Println("[Rest] Update repository error: ", err.Error())
 	}
 }
@@ -130,20 +149,18 @@ func validateTags(name string, id string) bool {
 	return model.ValidateDuplicatedTag(name, tags, id)
 }
 
-//removeDBDuplicated remove duplicated data
-func removeDBDuplicated(repos []model.Repository) {
-	index := 0
-	for range repos {
-		if len(repos)-1 > index {
-			if repos[index].ID == repos[index+1].ID {
-				repos[index] = repos[len(repos)-1]
-				repos[len(repos)-1] = model.Repository{}
-				repos = repos[:len(repos)-1]
-				index--
-			}
+//removeDuplicates remove duplicated repesotories Ids
+func removeDuplicates(repos []model.Repository) []model.Repository {
+	encountered := map[int64]bool{}
+	result := []model.Repository{}
+	for v := range repos {
+		if encountered[repos[v].ID] == true {
+		} else {
+			encountered[repos[v].ID] = true
+			result = append(result, repos[v])
 		}
-		index++
 	}
+	return result
 }
 
 //getTagRecommendation recommend tags

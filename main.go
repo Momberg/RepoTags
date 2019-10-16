@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"repotags/handler"
 	"repotags/repository"
 
@@ -25,7 +26,7 @@ func init() {
 
 	ctx := context.Background()
 	ts := oauth2.StaticTokenSource(
-		&oauth2.Token{AccessToken: "2b03d7852c441112bafd54c6d581cf96110bdedf"},
+		&oauth2.Token{AccessToken: os.Getenv("GITTOKEN")},
 	)
 	tc := oauth2.NewClient(ctx, ts)
 
@@ -57,7 +58,7 @@ func init() {
 func main() {
 	router := mux.NewRouter()
 	router.HandleFunc("/repositories", handler.GetRepos).Methods("GET")
-	router.HandleFunc("/repositories/tag/{id}", handler.GetReposByTag).Methods("GET")
+	router.HandleFunc("/repositories/tag", handler.GetReposByTag).Methods("GET")
 	router.HandleFunc("/repository/{id}/tag", handler.AddTagToRepo).Methods("POST")
 	http.ListenAndServe(":8181", router)
 }
